@@ -1,0 +1,406 @@
+"""
+Model evaluation and testing script
+"""
+
+import numpy as np
+import tensorflow as tf
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+import pandas as pd
+from datetime import datetime
+import json
+import os
+import sys
+
+# Add parent directory to path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils import load_mnist_data, preprocess_images, plot_confusion_matrix
+from train_model import DigitRecognitionModel
+
+class ModelEvaluator:
+    def __init__(self, model_path='../model/resnet50_digit_recognition.h5'):
+        """
+        Initialize model evaluator
+        
+        Args:
+            model_path: Path to trained model
+        """
+        self.model_path = model_path
+        self.model = None
+        self.load_model()
+        
+    def load_model(self):
+        """Load trained model"""
+        print(f"Loading model from {self.model_path}...")
+        model_handler = DigitRecognitionModel()
+        model_handler.load_model(self.model_path)
+        self.model = model_handler.model
+        print("Model loaded successfully!")
+        
+    def evaluate_on_mnist(self):
+        """Evaluate model on MNIST test set"""
+        print("\n" + "="*60)
+        print("EVALUATING MODEL ON MNIST TEST SET")
+        print("="*60)
+        
+        # Load MNIST data
+        (_, _), (X_test, y_test) = load_mnist_data()
+        
+        # Preprocess images
+        X_test_processed = preprocess_images(X_test, target_size=(224, 224), model_type='resnet50')
+        
+        # Evaluate
+        test_loss, test_accuracy = self.model.evaluate(X_test_processed, y_test, verbose=0)
+        
+        # Get predictions
+        y_pred_probs = self.model.predict(X_test_processed, verbose=0)
+        y_pred = np.argmax(y_pred_probs, axis=1)
+        
+        # Calculate per-class accuracy
+        class_accuracies = {}
+        for digit in range(10):
+            mask = y_test == digit
+            if np.any(mask):
+                class_accuracy = accuracy_score(y_test[mask], y_pred[mask])
+                class_accuracies[digit] = class_accuracy
+        
+        # Generate detailed report
+        print(f"\nOverall Test Accuracy: {test_accuracy:.4f} ({test_accuracy*100:.2f}%)")
+        print(f"Test Loss: {test_loss:.4f}")
+        
+        print("\n" + "-"*40)
+        print("PER-CLASS ACCURACY:")
+        print("-"*40)
+        for digit, acc in sorted(class_accuracies.items()):
+            print(f"  Digit {digit}: {acc:.4f} ({acc*100:.2f}%)")
+        
+        # Classification report
+        print("\n" + "-"*40)
+        print("CLASSIFICATION REPORT:")
+        print("-"*40)
+        print(classification_report(y_test, y_pred, target_names=[str(i) for i in range(10)]))
+        
+        # Confusion matrix
+        print("\n" + "-"*40)
+        print("CONFUSION MATRIX:")
+        print("-"*40)
+        cm = confusion_matrix(y_test, y_pred)
+        print(cm)
+        
+        # Plot confusion matrix
+        plt.figure(figsize=(10, 8))
+        plot_confusion_matrix(cm, classes=[str(i) for i in range(10)], 
+                             title='Confusion Matrix - MNIST Test Set')
+        plt.savefig('../assets/evaluation/confusion_matrix_mnist.png', dpi=300, bbox_inches='tight')
+        
+        return test_accuracy, test_loss, class_accuracies
+    
+    def evaluate_on_custom_images(self, image_dir='../data/test_images/'):
+        """
+        Evaluate model on custom test images
+        
+        Args:
+            image_dir: Directory containing test images
+        """
+        print("\n" + "="*60)
+        print("EVALUATING MODEL ON CUSTOM TEST IMAGES")
+        print("="*60)
+        
+        if not os.path.exists(image_dir):
+            print(f"Test image directory not found: {image_dir}")
+            return None
+        
+        # Load custom test images
+        test_results = []
+        
+        for digit in range(10):
+            digit_dir = os.path.join(image_dir, str(digit))
+            if os.path.exists(digit_dir):
+                for img_file in os.listdir(digit_dir):
+                    if img_file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                        img_path = os.path.join(digit_dir, img_file)
+                        
+                        # Load and preprocess image
+                        from PIL import Image
+                        image = Image.open(img_path)
+                        processed = preprocess_images([np.array(image)], target_size=(224, 224), 
+                                                    model_type='resnet50')
+                        
+                        # Predict
+                        prediction = self.model.predict(processed, verbose=0)
+                        pred_digit = np.argmax(prediction[0])
+                        confidence = np.max(prediction[0])
+                        
+                        # Store result
+                        test_results.append({
+                            'file': img_file,
+                            'true_digit': digit,
+                            'predicted_digit': int(pred_digit),
+                            'confidence': float(confidence),
+                            'correct': digit == pred_digit
+                        })
+        
+        if test_results:
+            # Convert to DataFrame
+            df = pd.DataFrame(test_results)
+            
+            # Calculate statistics
+            total_images = len(df)
+            correct_predictions = df['correct'].sum()
+            accuracy = correct_predictions / total_images
+            
+            print(f"\nCustom Test Results:")
+            print(f"  Total Images: {total_images}")
+            print(f"  Correct Predictions: {correct_predictions}")
+            print(f"  Accuracy: {accuracy:.4f} ({accuracy*100:.2f}%)")
+            
+            # Per-digit accuracy
+            print("\n" + "-"*40)
+            print("PER-DIGIT ACCURACY (CUSTOM IMAGES):")
+            print("-"*40)
+            for digit in range(10):
+                digit_df = df[df['true_digit'] == digit]
+                if len(digit_df) > 0:
+                    digit_accuracy = digit_df['correct'].mean()
+                    print(f"  Digit {digit}: {digit_accuracy:.4f} ({digit_accuracy*100:.2f}%) - "
+                         f"{len(digit_df)} images")
+            
+            # Save results
+            results_file = f'../assets/evaluation/custom_test_results_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+            df.to_csv(results_file, index=False)
+            print(f"\nResults saved to: {results_file}")
+            
+            return accuracy, df
+        else:
+            print("No test images found!")
+            return None
+    
+    def analyze_errors(self, X_test, y_test, num_samples=10):
+        """
+        Analyze model errors and display misclassified samples
+        
+        Args:
+            X_test: Test images
+            y_test: Test labels
+            num_samples: Number of error samples to display
+        """
+        print("\n" + "="*60)
+        print("ANALYZING MODEL ERRORS")
+        print("="*60)
+        
+        # Get predictions
+        y_pred_probs = self.model.predict(X_test, verbose=0)
+        y_pred = np.argmax(y_pred_probs, axis=1)
+        
+        # Find misclassified samples
+        misclassified_indices = np.where(y_pred != y_test)[0]
+        
+        if len(misclassified_indices) == 0:
+            print("No errors found! Perfect classification.")
+            return
+        
+        print(f"\nTotal errors: {len(misclassified_indices)}/{len(y_test)} "
+              f"({len(misclassified_indices)/len(y_test)*100:.2f}%)")
+        
+        # Analyze error patterns
+        error_matrix = confusion_matrix(y_test, y_pred)
+        
+        print("\n" + "-"*40)
+        print("MOST COMMON CONFUSIONS:")
+        print("-"*40)
+        
+        # Find most common confusions (excluding diagonal)
+        error_pairs = []
+        for i in range(10):
+            for j in range(10):
+                if i != j and error_matrix[i, j] > 0:
+                    error_pairs.append((i, j, error_matrix[i, j]))
+        
+        # Sort by frequency
+        error_pairs.sort(key=lambda x: x[2], reverse=True)
+        
+        for true_digit, pred_digit, count in error_pairs[:10]:
+            print(f"  {true_digit} → {pred_digit}: {count} instances")
+        
+        # Display sample errors
+        print(f"\n" + "-"*40)
+        print(f"DISPLAYING {min(num_samples, len(misclassified_indices))} SAMPLE ERRORS:")
+        print("-"*40)
+        
+        plt.figure(figsize=(15, 10))
+        for i, idx in enumerate(misclassified_indices[:num_samples]):
+            plt.subplot(2, 5, i+1)
+            
+            # Display image (convert back from preprocessing)
+            img = X_test[idx].copy()
+            if img.shape[-1] == 3:  # RGB
+                # Undo ResNet-50 preprocessing
+                img = img + [103.939, 116.779, 123.68]
+                img = np.clip(img, 0, 255).astype(np.uint8)
+            
+            plt.imshow(img if len(img.shape) == 2 else img[:, :, 0], cmap='gray')
+            plt.title(f"True: {y_test[idx]}, Pred: {y_pred[idx]}\n"
+                     f"Conf: {np.max(y_pred_probs[idx]):.2%}")
+            plt.axis('off')
+        
+        plt.suptitle(f"Model Errors (Sample of {num_samples})", fontsize=16)
+        plt.tight_layout()
+        plt.savefig('../assets/evaluation/sample_errors.png', dpi=300, bbox_inches='tight')
+        plt.show()
+    
+    def analyze_confidence_distribution(self, X_test, y_test):
+        """
+        Analyze confidence score distribution
+        
+        Args:
+            X_test: Test images
+            y_test: Test labels
+        """
+        print("\n" + "="*60)
+        print("ANALYZING CONFIDENCE DISTRIBUTION")
+        print("="*60)
+        
+        # Get predictions and confidences
+        y_pred_probs = self.model.predict(X_test, verbose=0)
+        y_pred = np.argmax(y_pred_probs, axis=1)
+        confidences = np.max(y_pred_probs, axis=1)
+        
+        # Separate correct and incorrect predictions
+        correct_mask = y_pred == y_test
+        incorrect_mask = y_pred != y_test
+        
+        correct_confidences = confidences[correct_mask]
+        incorrect_confidences = confidences[incorrect_mask]
+        
+        # Calculate statistics
+        print(f"\nConfidence Statistics:")
+        print(f"  Overall mean confidence: {np.mean(confidences):.4f}")
+        print(f"  Overall median confidence: {np.median(confidences):.4f}")
+        print(f"  Correct predictions mean confidence: {np.mean(correct_confidences):.4f}")
+        print(f"  Incorrect predictions mean confidence: {np.mean(incorrect_confidences):.4f}")
+        
+        # Plot distribution
+        plt.figure(figsize=(12, 5))
+        
+        plt.subplot(1, 2, 1)
+        plt.hist(correct_confidences, bins=30, alpha=0.7, label='Correct', color='green')
+        plt.hist(incorrect_confidences, bins=30, alpha=0.7, label='Incorrect', color='red')
+        plt.xlabel('Confidence Score')
+        plt.ylabel('Frequency')
+        plt.title('Confidence Distribution: Correct vs Incorrect')
+        plt.legend()
+        plt.grid(True, alpha=0.3)
+        
+        plt.subplot(1, 2, 2)
+        accuracy_by_confidence = []
+        confidence_bins = np.linspace(0, 1, 21)
+        
+        for i in range(len(confidence_bins)-1):
+            low = confidence_bins[i]
+            high = confidence_bins[i+1]
+            mask = (confidences >= low) & (confidences < high)
+            if np.any(mask):
+                bin_accuracy = np.mean(y_pred[mask] == y_test[mask])
+                accuracy_by_confidence.append((low + high) / 2)
+        
+        plt.plot(accuracy_by_confidence, marker='o')
+        plt.xlabel('Confidence Score (bin center)')
+        plt.ylabel('Accuracy')
+        plt.title('Accuracy vs Confidence')
+        plt.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        plt.savefig('../assets/evaluation/confidence_analysis.png', dpi=300, bbox_inches='tight')
+        plt.show()
+        
+        # Find low-confidence but correct predictions
+        low_conf_threshold = 0.5
+        low_conf_correct = np.sum((confidences < low_conf_threshold) & correct_mask)
+        low_conf_incorrect = np.sum((confidences < low_conf_threshold) & incorrect_mask)
+        
+        print(f"\nLow Confidence Analysis (threshold={low_conf_threshold}):")
+        print(f"  Correct predictions with low confidence: {low_conf_correct}")
+        print(f"  Incorrect predictions with low confidence: {low_conf_incorrect}")
+        
+        return confidences, correct_confidences, incorrect_confidences
+    
+    def generate_evaluation_report(self, X_test, y_test):
+        """
+        Generate comprehensive evaluation report
+        
+        Args:
+            X_test: Test images
+            y_test: Test labels
+        """
+        print("\n" + "="*60)
+        print("GENERATING COMPREHENSIVE EVALUATION REPORT")
+        print("="*60)
+        
+        # Run all evaluations
+        accuracy, loss, class_accuracies = self.evaluate_on_mnist()
+        confidences, correct_conf, incorrect_conf = self.analyze_confidence_distribution(X_test, y_test)
+        self.analyze_errors(X_test, y_test)
+        
+        # Compile report
+        report = {
+            'timestamp': datetime.now().isoformat(),
+            'model': 'ResNet-50 Digit Recognition',
+            'dataset': 'MNIST',
+            'test_samples': len(X_test),
+            'overall_accuracy': float(accuracy),
+            'test_loss': float(loss),
+            'class_accuracies': {str(k): float(v) for k, v in class_accuracies.items()},
+            'confidence_statistics': {
+                'overall_mean': float(np.mean(confidences)),
+                'overall_median': float(np.median(confidences)),
+                'correct_mean': float(np.mean(correct_conf)),
+                'incorrect_mean': float(np.mean(incorrect_conf))
+            },
+            'evaluation_metrics': {
+                'precision_macro': None,  # Would calculate from classification report
+                'recall_macro': None,
+                'f1_macro': None
+            }
+        }
+        
+        # Save report
+        report_file = f'../assets/evaluation/full_evaluation_report_{datetime.now().strftime("%Y%m%d_%H%M%S")}.json'
+        os.makedirs(os.path.dirname(report_file), exist_ok=True)
+        
+        with open(report_file, 'w') as f:
+            json.dump(report, f, indent=2)
+        
+        print(f"\nFull evaluation report saved to: {report_file}")
+        
+        return report
+
+def main():
+    """Main evaluation function"""
+    print("="*60)
+    print("MODEL EVALUATION SCRIPT")
+    print("="*60)
+    
+    # Initialize evaluator
+    evaluator = ModelEvaluator()
+    
+    # Load MNIST test data
+    print("\nLoading MNIST test data...")
+    (_, _), (X_test, y_test) = load_mnist_data()
+    
+    # Preprocess test data
+    X_test_processed = preprocess_images(X_test, target_size=(224, 224), model_type='resnet50')
+    
+    # Generate comprehensive report
+    report = evaluator.generate_evaluation_report(X_test_processed, y_test)
+    
+    # Also evaluate on custom images if available
+    custom_results = evaluator.evaluate_on_custom_images()
+    
+    print("\n" + "="*60)
+    print("EVALUATION COMPLETED")
+    print(f"Final Model Accuracy: {report['overall_accuracy']:.4f} ({report['overall_accuracy']*100:.2f}%)")
+    print("="*60)
+
+if __name__ == "__main__":
+    main()

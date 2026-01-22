@@ -1,0 +1,456 @@
+"""
+Utility functions for digit recognition project
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import confusion_matrix
+import tensorflow as tf
+import tensorflow_datasets as tfds
+import pandas as pd
+import os
+from datetime import datetime
+import json
+import cv2
+from PIL import Image
+import warnings
+warnings.filterwarnings('ignore')
+
+def load_mnist_data():
+    """
+    Load MNIST dataset using TensorFlow Datasets
+    
+    Returns:
+        (X_train, y_train), (X_test, y_test)
+    """
+    print("Loading MNIST dataset...")
+    
+    # Load MNIST dataset
+    (train_ds, test_ds), ds_info = tfds.load(
+        'mnist',
+        split=['train', 'test'],
+        shuffle_files=True,
+        as_supervised=True,
+        with_info=True
+    )
+    
+    # Convert to numpy arrays
+    X_train, y_train = [], []
+    for image, label in tfds.as_numpy(train_ds):
+        X_train.append(image)
+        y_train.append(label)
+    
+    X_test, y_test = [], []
+    for image, label in tfds.as_numpy(test_ds):
+        X_test.append(image)
+        y_test.append(label)
+    
+    # Convert to numpy arrays
+    X_train = np.array(X_train)
+    y_train = np.array(y_train)
+    X_test = np.array(X_test)
+    y_test = np.array(y_test)
+    
+    print(f"Dataset loaded:")
+    print(f"  Training set: {X_train.shape[0]} samples, shape: {X_train.shape}")
+    print(f"  Test set: {X_test.shape[0]} samples, shape: {X_test.shape}")
+    
+    return (X_train, y_train), (X_test, y_test)
+
+def preprocess_images(images, target_size=(224, 224), model_type='resnet50'):
+    """
+    Preprocess images for ResNet-50 or other models
+    
+    Args:
+        images: Input images (numpy array)
+        target_size: Target size for resizing
+        model_type: Type of model ('resnet50', 'vgg16', 'efficientnet')
+    
+    Returns:
+        Preprocessed images
+    """
+    processed_images = []
+    
+    for image in images:
+        # Convert grayscale to RGB if needed
+        if len(image.shape) == 2:  # Grayscale
+            image_rgb = np.repeat(image[..., np.newaxis], 3, axis=-1)
+        elif image.shape[-1] == 1:  # Grayscale with channel
+            image_rgb = np.repeat(image, 3, axis=-1)
+        else:  # Already RGB
+            image_rgb = image
+        
+        # Resize to target size
+        image_resized = cv2.resize(image_rgb, target_size, interpolation=cv2.INTER_AREA)
+        
+        # Model-specific preprocessing
+        if model_type == 'resnet50':
+            # ResNet-50 expects specific preprocessing
+            image_processed = tf.keras.applications.resnet.preprocess_input(image_resized)
+        elif model_type == 'vgg16':
+            image_processed = tf.keras.applications.vgg16.preprocess_input(image_resized)
+        elif model_type == 'efficientnet':
+            image_processed = tf.keras.applications.efficientnet.preprocess_input(image_resized)
+        else:
+            # Default: normalize to [0, 1]
+            image_processed = image_resized / 255.0
+        
+        processed_images.append(image_processed)
+    
+    return np.array(processed_images)
+
+def plot_training_history(history):
+    """
+    Plot training history (accuracy and loss curves)
+    
+    Args:
+        history: Training history object from model.fit()
+    """
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+    
+    # Plot accuracy
+    axes[0].plot(history.history['accuracy'], label='Training Accuracy')
+    axes[0].plot(history.history['val_accuracy'], label='Validation Accuracy')
+    axes[0].set_xlabel('Epoch')
+    axes[0].set_ylabel('Accuracy')
+    axes[0].set_title('Model Accuracy')
+    axes[0].legend()
+    axes[0].grid(True, alpha=0.3)
+    
+    # Plot loss
+    axes[1].plot(history.history['loss'], label='Training Loss')
+    axes[1].plot(history.history['val_loss'], label='Validation Loss')
+    axes[1].set_xlabel('Epoch')
+    axes[1].set_ylabel('Loss')
+    axes[1].set_title('Model Loss')
+    axes[1].legend()
+    axes[1].grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    
+    # Save figure
+    os.makedirs('../assets/training', exist_ok=True)
+    plt.savefig('../assets/training/training_history.png', dpi=300, bbox_inches='tight')
+    plt.show()
+
+def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion Matrix', cmap=plt.cm.Blues):
+    """
+    Plot confusion matrix
+    
+    Args:
+        cm: Confusion matrix array
+        classes: List of class names
+        normalize: Whether to normalize the matrix
+        title: Plot title
+        cmap: Color map
+    """
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        print("Normalized confusion matrix")
+    else:
+        print('Confusion matrix, without normalization')
+    
+    plt.figure(figsize=(10, 8))
+    plt.imshow(cm, interpolation='nearest', cmap=cmap)
+    plt.title(title, fontsize=16)
+    plt.colorbar()
+    
+    tick_marks = np.arange(len(classes))
+    plt.xticks(tick_marks, classes, rotation=45)
+    plt.yticks(tick_marks, classes)
+    
+    fmt = '.2f' if normalize else 'd'
+    thresh = cm.max() / 2.
+    
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            plt.text(j, i, format(cm[i, j], fmt),
+                    ha="center", va="center",
+                    color="white" if cm[i, j] > thresh else "black")
+    
+    plt.ylabel('True label', fontsize=12)
+    plt.xlabel('Predicted label', fontsize=12)
+    plt.tight_layout()
+
+def visualize_predictions(images, true_labels, pred_labels, confidences, num_samples=10):
+    """
+    Visualize model predictions
+    
+    Args:
+        images: Input images
+        true_labels: True labels
+        pred_labels: Predicted labels
+        confidences: Confidence scores
+        num_samples: Number of samples to display
+    """
+    num_samples = min(num_samples, len(images))
+    
+    fig, axes = plt.subplots(2, 5, figsize=(15, 6))
+    axes = axes.flatten()
+    
+    for i in range(num_samples):
+        ax = axes[i]
+        
+        # Display image
+        img = images[i]
+        if len(img.shape) == 3 and img.shape[-1] == 3:
+            # Undo preprocessing for display
+            if img.min() < 0:  # ResNet-50 preprocessing
+                img = img + [103.939, 116.779, 123.68]
+                img = np.clip(img, 0, 255).astype(np.uint8)
+                ax.imshow(img)
+            else:
+                ax.imshow(img.astype(np.uint8))
+        else:
+            ax.imshow(img, cmap='gray')
+        
+        # Set title with prediction info
+        correct = true_labels[i] == pred_labels[i]
+        color = 'green' if correct else 'red'
+        
+        ax.set_title(f"True: {true_labels[i]}\nPred: {pred_labels[i]}\n"
+                    f"Conf: {confidences[i]:.2%}",
+                    color=color, fontsize=10)
+        ax.axis('off')
+    
+    # Hide unused subplots
+    for i in range(num_samples, len(axes)):
+        axes[i].axis('off')
+    
+    plt.suptitle(f"Model Predictions (Correct=Green, Incorrect=Red)", fontsize=14)
+    plt.tight_layout()
+    
+    # Save figure
+    os.makedirs('../assets/predictions', exist_ok=True)
+    plt.savefig('../assets/predictions/sample_predictions.png', dpi=300, bbox_inches='tight')
+    plt.show()
+
+def create_augmentation_pipeline():
+    """
+    Create data augmentation pipeline for training
+    
+    Returns:
+        Augmentation pipeline
+    """
+    data_augmentation = tf.keras.Sequential([
+        tf.keras.layers.RandomRotation(0.1),
+        tf.keras.layers.RandomZoom(0.1),
+        tf.keras.layers.RandomTranslation(0.1, 0.1),
+        tf.keras.layers.RandomContrast(0.1),
+    ])
+    
+    return data_augmentation
+
+def calculate_model_metrics(y_true, y_pred):
+    """
+    Calculate various model metrics
+    
+    Args:
+        y_true: True labels
+        y_pred: Predicted labels
+    
+    Returns:
+        Dictionary of metrics
+    """
+    from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+    
+    metrics = {
+        'accuracy': accuracy_score(y_true, y_pred),
+        'precision_macro': precision_score(y_true, y_pred, average='macro'),
+        'recall_macro': recall_score(y_true, y_pred, average='macro'),
+        'f1_macro': f1_score(y_true, y_pred, average='macro'),
+        'precision_weighted': precision_score(y_true, y_pred, average='weighted'),
+        'recall_weighted': recall_score(y_true, y_pred, average='weighted'),
+        'f1_weighted': f1_score(y_true, y_pred, average='weighted')
+    }
+    
+    return metrics
+
+def save_results_to_csv(results, filename='../assets/results/model_results.csv'):
+    """
+    Save model results to CSV file
+    
+    Args:
+        results: Dictionary or list of results
+        filename: Output CSV filename
+    """
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    
+    if isinstance(results, dict):
+        results = [results]
+    
+    df = pd.DataFrame(results)
+    df.to_csv(filename, index=False)
+    print(f"Results saved to {filename}")
+
+def load_model_weights(model, weights_path):
+    """
+    Load model weights with error handling
+    
+    Args:
+        model: Keras model
+        weights_path: Path to weights file
+    
+    Returns:
+        Model with loaded weights
+    """
+    try:
+        if os.path.exists(weights_path):
+            model.load_weights(weights_path)
+            print(f"Model weights loaded from {weights_path}")
+        else:
+            print(f"Weights file not found: {weights_path}")
+    except Exception as e:
+        print(f"Error loading weights: {e}")
+    
+    return model
+
+def create_model_checkpoint_callback(filepath='../model/checkpoints/model_epoch_{epoch:02d}.h5',
+                                   monitor='val_accuracy', save_best_only=True):
+    """
+    Create model checkpoint callback
+    
+    Args:
+        filepath: Path to save checkpoints
+        monitor: Metric to monitor
+        save_best_only: Save only best model
+    
+    Returns:
+        ModelCheckpoint callback
+    """
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    
+    return tf.keras.callbacks.ModelCheckpoint(
+        filepath=filepath,
+        monitor=monitor,
+        save_best_only=save_best_only,
+        save_weights_only=False,
+        verbose=1
+    )
+
+def get_class_distribution(labels):
+    """
+    Get class distribution from labels
+    
+    Args:
+        labels: Array of labels
+    
+    Returns:
+        Dictionary with class counts
+    """
+    unique, counts = np.unique(labels, return_counts=True)
+    distribution = dict(zip(unique, counts))
+    
+    # Convert to percentages
+    total = sum(counts)
+    percentages = {k: v/total*100 for k, v in distribution.items()}
+    
+    return distribution, percentages
+
+def plot_class_distribution(labels, title='Class Distribution'):
+    """
+    Plot class distribution
+    
+    Args:
+        labels: Array of labels
+        title: Plot title
+    """
+    distribution, percentages = get_class_distribution(labels)
+    
+    plt.figure(figsize=(10, 6))
+    bars = plt.bar(distribution.keys(), distribution.values())
+    
+    # Add percentage labels
+    for bar, (digit, percentage) in zip(bars, percentages.items()):
+        height = bar.get_height()
+        plt.text(bar.get_x() + bar.get_width()/2., height,
+                f'{percentage:.1f}%',
+                ha='center', va='bottom')
+    
+    plt.xlabel('Digit')
+    plt.ylabel('Count')
+    plt.title(title)
+    plt.xticks(range(10))
+    plt.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    
+    # Save figure
+    os.makedirs('../assets/analysis', exist_ok=True)
+    plt.savefig('../assets/analysis/class_distribution.png', dpi=300, bbox_inches='tight')
+    plt.show()
+    
+    return distribution, percentages
+
+def convert_to_tflite(model, output_path='../model/digit_recognition.tflite'):
+    """
+    Convert Keras model to TensorFlow Lite format
+    
+    Args:
+        model: Keras model
+        output_path: Output TFLite file path
+    """
+    # Convert model
+    converter = tf.lite.TFLiteConverter.from_keras_model(model)
+    tflite_model = converter.convert()
+    
+    # Save model
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+    with open(output_path, 'wb') as f:
+        f.write(tflite_model)
+    
+    print(f"TFLite model saved to {output_path}")
+    
+    return tflite_model
+
+def test_tflite_model(tflite_model, test_images):
+    """
+    Test TFLite model
+    
+    Args:
+        tflite_model: TFLite model bytes
+        test_images: Test images for inference
+    """
+    # Load TFLite model
+    interpreter = tf.lite.Interpreter(model_content=tflite_model)
+    interpreter.allocate_tensors()
+    
+    # Get input and output details
+    input_details = interpreter.get_input_details()
+    output_details = interpreter.get_output_details()
+    
+    # Test on a single image
+    test_image = test_images[0:1]
+    
+    # Set input tensor
+    interpreter.set_tensor(input_details[0]['index'], test_image)
+    
+    # Run inference
+    interpreter.invoke()
+    
+    # Get output
+    output = interpreter.get_tensor(output_details[0]['index'])
+    
+    print(f"TFLite model test output shape: {output.shape}")
+    print(f"Prediction: {np.argmax(output)}")
+    
+    return output
+
+if __name__ == "__main__":
+    print("Testing utility functions...")
+    
+    # Test data loading
+    (X_train, y_train), (X_test, y_test) = load_mnist_data()
+    
+    # Test preprocessing
+    sample_image = X_train[0]
+    processed = preprocess_images([sample_image], model_type='resnet50')
+    print(f"\nPreprocessing test:")
+    print(f"  Input shape: {sample_image.shape}")
+    print(f"  Output shape: {processed.shape}")
+    
+    # Test class distribution plotting
+    plot_class_distribution(y_train[:1000], "Sample Class Distribution")
+    
+    print("\nUtility functions test completed successfully!")

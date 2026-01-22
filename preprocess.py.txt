@@ -1,0 +1,378 @@
+"""
+Data preprocessing utilities for digit recognition
+"""
+
+import numpy as np
+import cv2
+from PIL import Image, ImageOps, ImageFilter
+import tensorflow as tf
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+import random
+import os
+
+def preprocess_image(image, target_size=(224, 224), model_type='resnet50'):
+    """
+    Preprocess a single image for model input
+    
+    Args:
+        image: Input image (PIL Image or numpy array)
+        target_size: Target size for resizing
+        model_type: Type of model for specific preprocessing
+    
+    Returns:
+        Preprocessed image as numpy array
+    """
+    # Convert to PIL Image if numpy array
+    if isinstance(image, np.ndarray):
+        if image.ndim == 2:  # Grayscale
+            image = Image.fromarray(image).convert('RGB')
+        else:  # RGB
+            image = Image.fromarray(image)
+    elif isinstance(image, Image.Image):
+        if image.mode != 'RGB':
+            image = image.convert('RGB')
+    
+    # Resize image
+    image = image.resize(target_size)
+    
+    # Convert to numpy array
+    image_array = np.array(image, dtype=np.float32)
+    
+    # Model-specific preprocessing
+    if model_type == 'resnet50':
+        # ResNet-50 expects specific preprocessing
+        image_array = tf.keras.applications.resnet.preprocess_input(image_array)
+    elif model_type == 'vgg16':
+        # VGG16 preprocessing
+        image_array = tf.keras.applications.vgg16.preprocess_input(image_array)
+    elif model_type == 'efficientnet':
+        # EfficientNet preprocessing
+        image_array = tf.keras.applications.efficientnet.preprocess_input(image_array)
+    else:
+        # Default preprocessing: normalize to [0, 1]
+        image_array = image_array / 255.0
+    
+    return image_array
+
+def preprocess_images(images, target_size=(224, 224), model_type='resnet50'):
+    """
+    Preprocess batch of images
+    
+    Args:
+        images: List or array of images
+        target_size: Target size for resizing
+        model_type: Type of model for specific preprocessing
+    
+    Returns:
+        Preprocessed images as numpy array
+    """
+    preprocessed_images = []
+    
+    for image in images:
+        if len(image.shape) == 2:  # Grayscale (28x28)
+            # Convert to PIL Image
+            img_pil = Image.fromarray(image.astype(np.uint8))
+            
+            # Resize and convert to RGB
+            img_pil = img_pil.resize(target_size)
+            img_pil = img_pil.convert('RGB')
+            
+            img_array = np.array(img_pil, dtype=np.float32)
+        elif len(image.shape) == 3 and image.shape[2] == 1:  # Grayscale with channel
+            img_array = np.repeat(image, 3, axis=2)
+            img_pil = Image.fromarray(img_array.astype(np.uint8))
+            img_pil = img_pil.resize(target_size)
+            img_array = np.array(img_pil, dtype=np.float32)
+        else:  # Already RGB
+            img_pil = Image.fromarray(image.astype(np.uint8))
+            img_pil = img_pil.resize(target_size)
+            img_array = np.array(img_pil, dtype=np.float32)
+        
+        # Apply model-specific preprocessing
+        if model_type == 'resnet50':
+            img_array = tf.keras.applications.resnet.preprocess_input(img_array)
+        elif model_type == 'vgg16':
+            img_array = tf.keras.applications.vgg16.preprocess_input(img_array)
+        elif model_type == 'efficientnet':
+            img_array = tf.keras.applications.efficientnet.preprocess_input(img_array)
+        else:
+            img_array = img_array / 255.0
+        
+        preprocessed_images.append(img_array)
+    
+    return np.array(preprocessed_images)
+
+def augment_image(image, augmentations=None):
+    """
+    Apply data augmentation to an image
+    
+    Args:
+        image: Input image (numpy array)
+        augmentations: List of augmentations to apply
+    
+    Returns:
+        Augmented image
+    """
+    if augmentations is None:
+        augmentations = ['rotate', 'shift', 'zoom', 'brightness', 'noise']
+    
+    # Convert to PIL for some operations
+    pil_image = Image.fromarray(image.astype(np.uint8))
+    
+    # Random augmentations
+    if 'rotate' in augmentations and random.random() > 0.5:
+        angle = random.uniform(-15, 15)
+        pil_image = pil_image.rotate(angle, resample=Image.BICUBIC, expand=False)
+    
+    if 'shift' in augmentations and random.random() > 0.5:
+        dx = random.randint(-3, 3)
+        dy = random.randint(-3, 3)
+        pil_image = Image.fromarray(np.roll(np.array(pil_image), (dy, dx), axis=(0, 1)))
+    
+    if 'zoom' in augmentations and random.random() > 0.5:
+        zoom_factor = random.uniform(0.8, 1.2)
+        new_size = tuple(int(dim * zoom_factor) for dim in pil_image.size)
+        pil_image = pil_image.resize(new_size, Image.BICUBIC)
+        
+        # Crop back to original size
+        width, height = pil_image.size
+        left = (width - image.shape[1]) // 2
+        top = (height - image.shape[0]) // 2
+        right = left + image.shape[1]
+        bottom = top + image.shape[0]
+        pil_image = pil_image.crop((left, top, right, bottom))
+    
+    if 'brightness' in augmentations and random.random() > 0.5:
+        brightness_factor = random.uniform(0.8, 1.2)
+        pil_image = Image.fromarray(
+            np.clip(np.array(pil_image).astype(np.float32) * brightness_factor, 0, 255).astype(np.uint8)
+        )
+    
+    if 'noise' in augmentations and random.random() > 0.5:
+        noise_level = random.uniform(0, 20)
+        noise = np.random.normal(0, noise_level, np.array(pil_image).shape)
+        noisy_image = np.array(pil_image).astype(np.float32) + noise
+        pil_image = Image.fromarray(np.clip(noisy_image, 0, 255).astype(np.uint8))
+    
+    return np.array(pil_image)
+
+def prepare_canvas_image(canvas_data, target_size=(224, 224)):
+    """
+    Prepare canvas drawing for prediction
+    
+    Args:
+        canvas_data: Base64 encoded canvas data or PIL Image
+        target_size: Target size for resizing
+    
+    Returns:
+        Preprocessed image ready for model prediction
+    """
+    try:
+        # If canvas_data is a string (base64)
+        if isinstance(canvas_data, str):
+            import base64
+            from io import BytesIO
+            
+            # Remove data URL prefix if present
+            if 'base64,' in canvas_data:
+                canvas_data = canvas_data.split('base64,')[1]
+            
+            # Decode base64
+            image_bytes = base64.b64decode(canvas_data)
+            image = Image.open(BytesIO(image_bytes))
+        else:
+            image = canvas_data
+        
+        # Convert to grayscale if needed
+        if image.mode != 'L':
+            image = image.convert('L')
+        
+        # Invert colors (canvas drawings are usually black on white)
+        image = ImageOps.invert(image)
+        
+        # Remove white background
+        image_array = np.array(image)
+        image_array[image_array < 50] = 0  # Threshold to remove noise
+        image = Image.fromarray(image_array)
+        
+        # Add padding
+        image = ImageOps.expand(image, border=20, fill=0)
+        
+        # Resize while maintaining aspect ratio
+        image.thumbnail((target_size[0]-40, target_size[1]-40))
+        
+        # Create new image with target size and centered digit
+        new_image = Image.new('L', target_size, color=0)
+        paste_x = (target_size[0] - image.width) // 2
+        paste_y = (target_size[1] - image.height) // 2
+        new_image.paste(image, (paste_x, paste_y))
+        
+        # Convert to RGB for ResNet-50
+        new_image = new_image.convert('RGB')
+        
+        # Preprocess for ResNet-50
+        processed_image = preprocess_image(new_image, target_size, 'resnet50')
+        
+        return processed_image
+        
+    except Exception as e:
+        print(f"Error preparing canvas image: {e}")
+        return None
+
+def extract_digit_from_image(image, min_contour_area=100):
+    """
+    Extract digit from image by finding contours
+    
+    Args:
+        image: Input image (numpy array)
+        min_contour_area: Minimum area for a contour to be considered a digit
+    
+    Returns:
+        Extracted digit image or None if no digit found
+    """
+    # Convert to grayscale if needed
+    if len(image.shape) == 3:
+        gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    else:
+        gray = image.copy()
+    
+    # Apply threshold
+    _, thresh = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    
+    # Find contours
+    contours, _ = cv2.findContours(thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    if not contours:
+        return None
+    
+    # Find the largest contour (likely the digit)
+    largest_contour = max(contours, key=cv2.contourArea)
+    
+    if cv2.contourArea(largest_contour) < min_contour_area:
+        return None
+    
+    # Get bounding box
+    x, y, w, h = cv2.boundingRect(largest_contour)
+    
+    # Extract digit
+    digit = image[y:y+h, x:x+w]
+    
+    return digit
+
+def create_data_generator(X_train, y_train, batch_size=32, augment=True):
+    """
+    Create data generator with optional augmentation
+    
+    Args:
+        X_train: Training images
+        y_train: Training labels
+        batch_size: Batch size
+        augment: Whether to use augmentation
+    
+    Returns:
+        Data generator
+    """
+    if augment:
+        datagen = ImageDataGenerator(
+            rotation_range=10,
+            width_shift_range=0.1,
+            height_shift_range=0.1,
+            zoom_range=0.1,
+            brightness_range=[0.9, 1.1],
+            validation_split=0.2
+        )
+    else:
+        datagen = ImageDataGenerator(validation_split=0.2)
+    
+    train_generator = datagen.flow(
+        X_train, y_train,
+        batch_size=batch_size,
+        subset='training'
+    )
+    
+    validation_generator = datagen.flow(
+        X_train, y_train,
+        batch_size=batch_size,
+        subset='validation'
+    )
+    
+    return train_generator, validation_generator
+
+def normalize_images(images):
+    """
+    Normalize images to [0, 1] range
+    
+    Args:
+        images: Input images
+    
+    Returns:
+        Normalized images
+    """
+    return images.astype(np.float32) / 255.0
+
+def resize_images(images, target_size=(224, 224)):
+    """
+    Resize images to target size
+    
+    Args:
+        images: Input images
+        target_size: Target size (height, width)
+    
+    Returns:
+        Resized images
+    """
+    resized_images = []
+    
+    for image in images:
+        if len(image.shape) == 2:  # Grayscale
+            resized = cv2.resize(image, target_size[::-1], interpolation=cv2.INTER_AREA)
+            resized_images.append(resized)
+        elif len(image.shape) == 3:  # Color
+            resized = cv2.resize(image, target_size[::-1], interpolation=cv2.INTER_AREA)
+            resized_images.append(resized)
+    
+    return np.array(resized_images)
+
+def load_and_preprocess_test_images(image_paths, target_size=(224, 224)):
+    """
+    Load and preprocess test images from file paths
+    
+    Args:
+        image_paths: List of image file paths
+        target_size: Target size for resizing
+    
+    Returns:
+        Preprocessed images
+    """
+    images = []
+    
+    for path in image_paths:
+        if os.path.exists(path):
+            image = Image.open(path)
+            image = image.resize(target_size)
+            
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+            
+            image_array = np.array(image)
+            images.append(image_array)
+    
+    if images:
+        return preprocess_images(np.array(images), target_size)
+    
+    return np.array([])
+
+if __name__ == "__main__":
+    # Test preprocessing
+    print("Testing preprocessing functions...")
+    
+    # Create a sample MNIST-like image
+    sample_image = np.random.randint(0, 255, (28, 28), dtype=np.uint8)
+    
+    # Preprocess for ResNet-50
+    processed = preprocess_image(sample_image, model_type='resnet50')
+    print(f"Input shape: {sample_image.shape}")
+    print(f"Output shape: {processed.shape}")
+    print(f"Pixel range: [{processed.min():.2f}, {processed.max():.2f}]")
+    
+    print("\nPreprocessing test completed successfully!")
