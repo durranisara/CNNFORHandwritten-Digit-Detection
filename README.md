@@ -30,28 +30,6 @@ This repository implements a comprehensive **handwritten digit recognition syste
 - **Visualization:** Includes **training curves, confusion matrices, and feature maps**.  
 - **Export Capabilities:** Save results in **CSV, Excel, or PDF formats**.
 
-
-🗂️ Project Structure
-text
-.
-├── README.md                    # This file
-├── requirements.txt             # Python dependencies
-├── train_model.py               # Main training script
-├── evaluate_model.py            # Model evaluation and metrics
-├── predict.py                   # Prediction and inference
-├── preprocess.py                # Data preprocessing utilities
-├── utils.py                     # Helper functions and utilities
-├── data/                        # Dataset directory
-│   ├── mnist/                   # MNIST dataset
-│   └── custom/                  # Custom digit images
-├── models/                      # Saved model files
-│   ├── cnn_digit_model.h5      # Trained CNN model
-│   └── checkpoints/            # Training checkpoints
-├── notebooks/                   # Jupyter notebooks
-│   └── exploration.ipynb       # Data exploration and analysis
-└── assets/                      # Visualizations and outputs
-    ├── training_history.png
-    └── confusion_matrix.png
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -68,7 +46,7 @@ text
 ```bash
 git clone https://github.com/yourusername/handwritten-digit-detection.git
 cd handwritten-digit-detection
-
+```
 Basic Usage
 1. Train a new model:
 
