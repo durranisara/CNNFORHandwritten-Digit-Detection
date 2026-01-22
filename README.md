@@ -13,8 +13,6 @@ A robust deep learning framework for accurate **handwritten digit recognition** 
 
 ---
 
-# Handwritten Digit Recognition System
-
 📋 **Overview**  
 This repository implements a comprehensive **handwritten digit recognition system** using **Convolutional Neural Networks (CNNs)**. The framework achieves **over 99% accuracy** on the MNIST dataset and provides tools for **training, evaluation, and real-time prediction**. Designed with **modularity and extensibility** in mind, it supports various CNN architectures and preprocessing techniques.
 
