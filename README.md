@@ -1,5 +1,5 @@
 # Convolutional Neural Network Framework for Handwritten Digit Detection
-This repository contains the implementation of a handwritten digit recognition system using deep learning. It leverages Convolutional Neural Networks (CNNs) to automatically classify digits from images, providing high accuracy on standard datasets such as MNIST.
+A robust deep learning framework for accurate **handwritten digit recognition** using **Convolutional Neural Networks (CNNs)**.
 
 <div align="center">
 
@@ -8,10 +8,6 @@ This repository contains the implementation of a handwritten digit recognition s
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 [![Architecture](https://img.shields.io/badge/Architecture-CNN-red)](#architecture)
 [![Accuracy](https://img.shields.io/badge/Accuracy-99%2B%25-brightgreen)](#performance)
-
-# Handwritten Digit Recognition
-
-A robust deep learning framework for accurate **handwritten digit recognition** using **Convolutional Neural Networks (CNNs)**.
 
 </div>
 
