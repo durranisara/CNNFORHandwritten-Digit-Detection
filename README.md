@@ -78,29 +78,31 @@ digit, confidence = predictor.predict_from_canvas(canvas_image)
 print(f"Predicted: {digit} with {confidence:.2%} confidence")
 ```
 
+## 📊 Model Architecture
 
+The core **Convolutional Neural Network (CNN)** architecture is designed for efficient and accurate handwritten digit recognition. The model processes grayscale images of size **28×28** and outputs probabilities for **10 digit classes (0–9)**.
 
-📊 Model Architecture
-The core CNN architecture includes:
+### Architecture Flow
 
-text
-Input (28×28×1) → Conv2D(32, 3×3) → ReLU → MaxPooling(2×2) 
-→ Conv2D(64, 3×3) → ReLU → MaxPooling(2×2) 
-→ Conv2D(64, 3×3) → ReLU → Flatten() 
-→ Dense(64) → ReLU → Dropout(0.5) 
-→ Dense(10) → Softmax
-Key Components:
+```text
+Input (28×28×1)
+→ Conv2D (32 filters, 3×3) → ReLU → MaxPooling (2×2)
+→ Conv2D (64 filters, 3×3) → ReLU → MaxPooling (2×2)
+→ Conv2D (64 filters, 3×3) → ReLU
+→ Flatten
+→ Dense (64) → ReLU → Dropout (0.5)
+→ Dense (10) → Softmax
+```
+
+### Key Components
 
 Convolutional Layers: Extract spatial features from digit images
-
 Max Pooling: Reduce spatial dimensions, increase translation invariance
-
 Dropout: Prevent overfitting (50% dropout rate)
-
 Softmax Output: 10-class classification (digits 0-9)
 
-🧪 Training Details
-Dataset
+### 🧪 Training Details
+### Dataset
 The model is trained on the MNIST dataset:
 
 60,000 training images
@@ -111,20 +113,16 @@ The model is trained on the MNIST dataset:
 
 10 classes (digits 0-9)
 
-Data Augmentation
+### Data Augmentation
 To improve generalization, the following augmentations are applied:
 
-Random rotations (±10 degrees)
+-Random rotations (±10 degrees)
+-Random zoom (90-110%)
+-Random shifts (±10%)
+-Brightness adjustments
 
-Random zoom (90-110%)
-
-Random shifts (±10%)
-
-Brightness adjustments
-
-Training Configuration
-python
-{
+### Training Configuration
+```bash
     "epochs": 20,
     "batch_size": 32,
     "learning_rate": 0.001,
@@ -132,107 +130,15 @@ python
     "loss_function": "categorical_crossentropy",
     "validation_split": 0.2,
     "early_stopping_patience": 5
-}
-📈 Performance
-Model	Accuracy	Precision	Recall	F1-Score	Inference Time
-CNN	99.2%	99.1%	99.2%	99.1%	2-5ms
-Random Forest	96.8%	96.5%	96.8%	96.6%	10-15ms
-SVM	97.2%	97.0%	97.2%	97.1%	5-10ms
-Confusion Matrix:
+```
+## 📈 Performance
 
-text
-[[ 980    0    0    0    0    0    0    0    0    0]
- [   0 1135    0    0    0    0    0    0    0    0]
- [   0    0 1032    0    0    0    0    0    0    0]
- [   0    0    0 1010    0    0    0    0    0    0]
- [   0    0    0    0  982    0    0    0    0    0]
- [   0    0    0    0    0  892    0    0    0    0]
- [   0    0    0    0    0    0  958    0    0    0]
- [   0    0    0    0    0    0    0 1028    0    0]
- [   0    0    0    0    0    0    0    0  974    0]
- [   0    0    0    0    0    0    0    0    0 1009]]
-📁 File Documentation
-train_model.py
-Main training script that:
+The following table summarizes the performance of different models evaluated on the **MNIST dataset**. Metrics include accuracy, precision, recall, F1-score, and average inference time per sample.
 
-Loads and preprocesses MNIST dataset
+| Model            | Accuracy | Precision | Recall | F1-Score | Inference Time |
+|------------------|----------|-----------|--------|----------|----------------|
+| CNN              | 99.2%    | 99.1%     | 99.2%  | 99.1%    | 2–5 ms         |
+| Random Forest    | 96.8%    | 96.5%     | 96.8%  | 96.6%    | 10–15 ms       |
+| SVM              | 97.2%    | 97.0%     | 97.2%  | 97.1%    | 5–10 ms        |
 
-Builds CNN architecture
 
-Trains with data augmentation
-
-Saves model and training history
-
-Generates performance visualizations
-
-Usage:
-
-bash
-python train_model.py --epochs 20 --batch_size 32 --save_path models/
-evaluate_model.py
-Comprehensive evaluation module that:
-
-Loads trained models
-
-Computes accuracy, precision, recall, F1-score
-
-Generates confusion matrices
-
-Analyzes per-class performance
-
-Saves evaluation reports
-
-Usage:
-
-bash
-python evaluate_model.py --model models/cnn_digit_model.h5 --test_size 1000
-predict.py
-Prediction interface that:
-
-Loads trained CNN model
-
-Preprocesses input images
-
-Makes predictions with confidence scores
-
-Supports batch processing
-
-Provides top-k predictions
-
-Usage:
-
-python
-from predict import DigitPredictor
-
-predictor = DigitPredictor('models/cnn_digit_model.h5')
-digit, confidence = predictor.predict_from_image('digit.png')
-top_3 = predictor.get_top_k_predictions(image, k=3)
-preprocess.py
-Data preprocessing utilities:
-
-Image normalization and resizing
-
-Data augmentation pipeline
-
-Canvas image preparation
-
-Noise reduction and filtering
-
-Key Functions:
-
-python
-preprocess_image(image, target_size=(28, 28))
-augment_image(image, augmentations=['rotate', 'shift'])
-prepare_canvas_image(canvas_data)
-utils.py
-Helper functions including:
-
-Dataset loading and splitting
-
-Visualization tools
-
-Model saving/loading
-
-Performance metrics calculation
-
-File I/O operations
