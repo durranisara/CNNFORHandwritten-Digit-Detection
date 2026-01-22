@@ -12,24 +12,24 @@ A robust deep learning framework for accurate **handwritten digit recognition** 
 </div>
 
 ---
-</div>
-📋 Overview
-This repository implements a comprehensive handwritten digit recognition system using Convolutional Neural Networks (CNNs). The framework achieves over 99% accuracy on the MNIST dataset and provides tools for training, evaluation, and real-time prediction. Designed with modularity and extensibility in mind, it supports various CNN architectures and preprocessing techniques.
 
-✨ Features
-Multiple Input Modalities: Support for canvas drawings, image uploads, and real-time camera input
+# Handwritten Digit Recognition System
 
-High Accuracy: 99%+ accuracy on MNIST benchmark
+📋 **Overview**  
+This repository implements a comprehensive **handwritten digit recognition system** using **Convolutional Neural Networks (CNNs)**. The framework achieves **over 99% accuracy** on the MNIST dataset and provides tools for **training, evaluation, and real-time prediction**. Designed with **modularity and extensibility** in mind, it supports various CNN architectures and preprocessing techniques.
 
-Real-time Inference: Fast prediction with confidence scoring
+---
 
-Data Augmentation: Built-in preprocessing and augmentation pipelines
+✨ **Features**
 
-Model Comparison: Tools for evaluating different CNN architectures
+- **Multiple Input Modalities:** Support for canvas drawings, image uploads, and real-time camera input.  
+- **High Accuracy:** Achieves **99%+ accuracy** on the MNIST benchmark.  
+- **Real-time Inference:** Fast prediction with **confidence scoring**.  
+- **Data Augmentation:** Built-in preprocessing and augmentation pipelines.  
+- **Model Comparison:** Tools for evaluating **different CNN architectures**.  
+- **Visualization:** Includes **training curves, confusion matrices, and feature maps**.  
+- **Export Capabilities:** Save results in **CSV, Excel, or PDF formats**.
 
-Visualization: Training curves, confusion matrices, and feature maps
-
-Export Capabilities: Save results in CSV, Excel, or PDF formats
 
 🗂️ Project Structure
 text
@@ -52,29 +52,23 @@ text
 └── assets/                      # Visualizations and outputs
     ├── training_history.png
     └── confusion_matrix.png
-🚀 Quick Start
-Prerequisites
-Python 3.8 or higher
+## 🚀 Quick Start
 
-TensorFlow 2.x
+### Prerequisites
+- **Python 3.8** or higher  
+- **TensorFlow 2.x**  
+- **Git**
 
-Git
+---
 
-Installation
-Clone the repository
+### Installation
 
-bash
+1. **Clone the repository**
+
+```bash
 git clone https://github.com/yourusername/handwritten-digit-detection.git
 cd handwritten-digit-detection
-Create a virtual environment (recommended)
 
-bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-Install dependencies
-
-bash
-pip install -r requirements.txt
 Basic Usage
 1. Train a new model:
 
