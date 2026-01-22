@@ -45,31 +45,41 @@ This repository implements a comprehensive **handwritten digit recognition syste
 git clone https://github.com/yourusername/handwritten-digit-detection.git
 cd handwritten-digit-detection
 ```
-Basic Usage
-1. Train a new model:
+## 📌 Basic Usage
 
-bash
-python train_model.py --epochs 20 --batch_size 32 --model_name cnn_digit_model
-2. Evaluate the model:
+### Train a New Model
 
-bash
-python evaluate_model.py --model_path models/cnn_digit_model.h5
-3. Make predictions:
-
-python
+```bash
+python train_model.py \
+    --epochs 20 \
+    --batch_size 32 \
+    --model_name cnn_digit_model
+```
+### Evaluate the Model
+```bash
+python evaluate_model.py \
+    --model_path models/cnn_digit_model.h5
+```
+### Make Predictions
+```bash
 from predict import DigitPredictor
+import numpy as np
 
 # Initialize predictor
-predictor = DigitPredictor('models/cnn_digit_model.h5')
+predictor = DigitPredictor("models/cnn_digit_model.h5")
 
-# Predict from image file
-digit, confidence = predictor.predict_from_image('data/custom/test_5.png')
+# Predict from an image file
+digit, confidence = predictor.predict_from_image("data/custom/test_5.png")
 print(f"Predicted: {digit} with {confidence:.2%} confidence")
 
-# Predict from canvas drawing (numpy array)
-import numpy as np
+# Predict from a canvas drawing (NumPy array)
 canvas_image = np.random.rand(28, 28)  # Replace with actual canvas data
 digit, confidence = predictor.predict_from_canvas(canvas_image)
+print(f"Predicted: {digit} with {confidence:.2%} confidence")
+```
+
+
+
 📊 Model Architecture
 The core CNN architecture includes:
 
