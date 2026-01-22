@@ -2,14 +2,20 @@
 This repository contains the implementation of a handwritten digit recognition system using deep learning. It leverages Convolutional Neural Networks (CNNs) to automatically classify digits from images, providing high accuracy on standard datasets such as MNIST.
 
 <div align="center">
-https://img.shields.io/badge/Python-3.8%252B-blue
-https://img.shields.io/badge/TensorFlow-2.x-orange
-https://img.shields.io/badge/License-MIT-green
-https://img.shields.io/badge/Architecture-CNN-red
-https://img.shields.io/badge/Accuracy-99%252B%2525-brightgreen
 
-A robust deep learning framework for accurate handwritten digit recognition using Convolutional Neural Networks
+[![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/)
+[![TensorFlow](https://img.shields.io/badge/TensorFlow-2.x-orange)](https://www.tensorflow.org/)
+[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+[![Architecture](https://img.shields.io/badge/Architecture-CNN-red)](#architecture)
+[![Accuracy](https://img.shields.io/badge/Accuracy-99%2B%25-brightgreen)](#performance)
 
+# Handwritten Digit Recognition
+
+A robust deep learning framework for accurate **handwritten digit recognition** using **Convolutional Neural Networks (CNNs)**.
+
+</div>
+
+---
 </div>
 📋 Overview
 This repository implements a comprehensive handwritten digit recognition system using Convolutional Neural Networks (CNNs). The framework achieves over 99% accuracy on the MNIST dataset and provides tools for training, evaluation, and real-time prediction. Designed with modularity and extensibility in mind, it supports various CNN architectures and preprocessing techniques.
